@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="三语词卡">
+<meta name="theme-color" content="#1d6b55">
+<title>三语词卡 Trois Mots</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap">
+<style>
+/* Layout: one-screen app — home (today panel + category grid) → study view with one flip card → settings sheet */
+:root{
+  --bg:#f3f5f2; --surface:#ffffff; --surface-2:#e8ece7; --fg:#18201c; --muted:#5d6a63; --line:#d5dcd6;
+  --accent:#1d6b55; --accent-fg:#ffffff;
+  --masc:#2456b8; --masc-bg:#e3ebfa; --fem:#c0304f; --fem-bg:#fbe5ea;
+  --good:#1d7a4a; --bad:#b4471f; --warn:#9a6a00;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:-apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  --shadow:0 1px 2px rgba(20,40,30,.06), 0 8px 28px rgba(20,40,30,.10);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#121815; --surface:#1b2420; --surface-2:#24302a; --fg:#e8eee9; --muted:#9aa8a0; --line:#2f3c35;
+  --accent:#4fb894; --accent-fg:#0d1a14;
+  --masc:#7ea6f2; --masc-bg:#1d2a44; --fem:#f08aa0; --fem-bg:#3d1e27;
+  --good:#5cc68a; --bad:#ec8a62; --warn:#e2b44f; --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35); color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#121815; --surface:#1b2420; --surface-2:#24302a; --fg:#e8eee9; --muted:#9aa8a0; --line:#2f3c35;
+  --accent:#4fb894; --accent-fg:#0d1a14;
+  --masc:#7ea6f2; --masc-bg:#1d2a44; --fem:#f08aa0; --fem-bg:#3d1e27;
+  --good:#5cc68a; --bad:#ec8a62; --warn:#e2b44f; --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35); color-scheme:dark }
+
+html,body{height:100%}
+body{background:var(--bg); color:var(--fg); font-family:var(--body); font-size:15px; -webkit-tap-highlight-color:transparent}
+.app{max-width:560px; margin:0 auto; min-height:100%; display:flex; flex-direction:column;
+  padding-left:max(16px, env(safe-area-inset-left, 0px)); padding-right:max(16px, env(safe-area-inset-right, 0px)); padding-block:12px 20px}
+button{font:inherit; color:inherit; cursor:pointer}
+button:disabled{cursor:default; opacity:.45}
+button:focus-visible, input:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.bar{display:flex; align-items:center; gap:10px; min-height:48px}
+.bar h1{font-family:var(--display); font-size:22px; font-weight:700; margin:0; flex:1; min-width:0; letter-spacing:-.01em}
+.bar h1 small{display:block; font-family:var(--body); font-size:12px; font-weight:400; color:var(--muted); letter-spacing:0}
+.iconbtn{width:42px; height:42px; border-radius:12px; border:1px solid var(--line); background:var(--surface); display:grid; place-items:center; flex:none}
+.iconbtn svg{width:20px; height:20px}
+
+/* home */
+.today{display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; padding:16px; border-radius:20px; background:var(--surface); border:1px solid var(--line); margin:8px 0 14px}
+.today .lbl{font-size:12px; color:var(--muted)}
+.today .num{font-family:var(--display); font-size:34px; font-weight:700; line-height:1.1; font-variant-numeric:tabular-nums}
+.today .num.due{color:var(--accent)}
+.today .start{grid-column:1/-1; margin-top:10px}
+.today .msg{grid-column:1/-1; font-size:13px; color:var(--muted); margin-top:6px}
+.legend{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; font-size:12px; color:var(--muted); align-items:center}
+.chip{display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:600}
+.chip.m{background:var(--masc-bg); color:var(--masc)} .chip.f{background:var(--fem-bg); color:var(--fem)}
+.grid{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px}
+.cat{display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:14px; border-radius:18px; border:1px solid var(--line); background:var(--surface); text-align:left; transition:transform .15s; position:relative}
+.cat:active{transform:scale(.97)}
+.cat .emo{font-size:38px; line-height:1.1; margin-bottom:6px}
+.cat .zh{font-size:17px; font-weight:700}
+.cat .fr{font-family:var(--display); font-size:13px; color:var(--muted)}
+.cat .badge{position:absolute; top:12px; right:12px; min-width:22px; height:22px; padding:0 7px; border-radius:11px; background:var(--accent); color:var(--accent-fg); font-size:12px; font-weight:700; display:grid; place-items:center; font-variant-numeric:tabular-nums}
+.meter{width:100%; height:4px; border-radius:4px; background:var(--surface-2); margin-top:10px; overflow:hidden; display:flex}
+.meter i{display:block; height:100%; background:var(--good)}
+.meter i.lrn{background:color-mix(in srgb, var(--good) 40%, transparent)}
+.cat .cnt{font-size:12px; color:var(--muted); margin-top:4px; font-variant-numeric:tabular-nums}
+
+/* study */
+.study{flex:1; display:flex; flex-direction:column; gap:14px}
+.progress{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums}
+.progress .meter{margin:0; flex:1} .progress .meter i{background:var(--accent)}
+.scene{perspective:1400px; width:100%; max-width:420px; margin:0 auto; aspect-ratio:4/5; max-height:56vh}
+.card{position:relative; width:100%; height:100%; transform-style:preserve-3d; transition:transform .5s cubic-bezier(.3,.7,.2,1); cursor:pointer}
+.card.flipped{transform:rotateY(180deg)}
+.face{position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden; border-radius:24px; background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow); display:flex; flex-direction:column; padding:18px}
+.front{align-items:center; justify-content:center}
+.front .pic{font-size:min(44vw, 170px); line-height:1}
+.hint{position:absolute; bottom:16px; left:0; right:0; text-align:center; font-size:12px; color:var(--muted)}
+.tag{position:absolute; top:14px; left:16px; font-size:12px; color:var(--muted)}
+.mark{position:absolute; top:12px; right:14px; font-size:12px; font-weight:600; padding:3px 8px; border-radius:999px; color:var(--accent); background:color-mix(in srgb, var(--accent) 13%, transparent)}
+.mark.new{color:var(--warn); background:color-mix(in srgb, var(--warn) 15%, transparent)}
+.back{transform:rotateY(180deg); justify-content:center; gap:10px}
+.back .mini{font-size:44px; text-align:center; margin-bottom:4px}
+.row{display:flex; align-items:center; gap:12px; padding:12px 12px 12px 14px; border-radius:16px; background:var(--surface-2)}
+.row .lang{flex:none; width:30px; font-size:11px; font-weight:700; letter-spacing:.08em; color:var(--muted)}
+.row .word{flex:1; min-width:0; font-size:22px; font-weight:700; overflow-wrap:anywhere}
+.row.en .word, .row.fr .word{font-family:var(--display); font-weight:500; font-size:23px}
+.row.fr{border:2px solid transparent}
+.row.fr.m{background:var(--masc-bg); border-color:color-mix(in srgb, var(--masc) 35%, transparent)} .row.fr.m .word{color:var(--masc)}
+.row.fr.f{background:var(--fem-bg); border-color:color-mix(in srgb, var(--fem) 35%, transparent)} .row.fr.f .word{color:var(--fem)}
+.row .gender{display:block; font-family:var(--body); font-size:11px; font-weight:600; margin-top:2px; opacity:.85}
+.speak{flex:none; width:44px; height:44px; border-radius:50%; border:none; background:var(--surface); display:grid; place-items:center; box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.speak svg{width:20px; height:20px}
+.speak.off{opacity:.45}
+.speak.playing{background:var(--accent); color:var(--accent-fg)}
+.controls{display:grid; gap:8px; max-width:420px; width:100%; margin:0 auto}
+.controls.reveal{grid-template-columns:1fr}
+.controls.rate{grid-template-columns:repeat(4, minmax(0,1fr))}
+.controls.practice{grid-template-columns:auto 1fr auto}
+.btn{min-height:52px; border-radius:14px; border:1px solid var(--line); background:var(--surface); font-weight:600; font-size:15px; display:flex; align-items:center; justify-content:center; gap:6px; padding:0 14px}
+.btn.yes{background:var(--accent); color:var(--accent-fg); border-color:var(--accent)}
+.btn svg{width:20px; height:20px}
+.rb{flex-direction:column; gap:1px; padding:6px 4px; min-height:58px; font-size:14px}
+.rb small{font-size:11px; font-weight:500; opacity:.8; font-variant-numeric:tabular-nums}
+.rb.r1{color:var(--bad); border-color:color-mix(in srgb, var(--bad) 45%, var(--line))}
+.rb.r2{color:var(--warn); border-color:color-mix(in srgb, var(--warn) 45%, var(--line))}
+.rb.r3{background:var(--accent); color:var(--accent-fg); border-color:var(--accent)}
+.rb.r4{color:var(--good); border-color:color-mix(in srgb, var(--good) 45%, var(--line))}
+
+/* done */
+.done{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px; padding:20px 0}
+.done h2{font-family:var(--display); font-size:26px; margin:0; text-wrap:balance}
+.done p{color:var(--muted); margin:0; max-width:32ch}
+.stats{display:flex; gap:24px; margin:8px 0 16px}
+.stats div{font-size:13px; color:var(--muted)} .stats b{display:block; font-family:var(--display); font-size:32px; color:var(--fg); font-variant-numeric:tabular-nums}
+.done .btn{width:100%; max-width:300px}
+
+/* settings sheet */
+.scrim{position:fixed; inset:0; background:rgba(10,20,15,.45); z-index:20; display:flex; align-items:flex-end; justify-content:center}
+.sheet{background:var(--surface); width:100%; max-width:560px; border-radius:22px 22px 0 0; max-height:90%; overflow:auto;
+  padding:18px max(18px, env(safe-area-inset-right, 0px)) calc(22px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px))}
+.sheet h3{font-family:var(--display); font-size:20px; margin:0 0 4px; display:flex; justify-content:space-between; align-items:center}
+.tabs{display:flex; background:var(--surface-2); border-radius:12px; padding:3px; gap:3px; margin:10px 0 4px}
+.tabs button{flex:1; border:none; background:transparent; padding:9px; border-radius:9px; font-size:14px; font-weight:600; color:var(--muted)}
+.tabs button.on{background:var(--surface); color:var(--fg); box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.sec{font-size:12px; letter-spacing:.06em; color:var(--muted); font-weight:600; margin:18px 0 6px}
+.opt{display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--line)}
+.opt:last-child{border-bottom:none}
+.opt label{flex:1; min-width:0} .opt label small{display:block; color:var(--muted); font-size:12px; margin-top:2px; line-height:1.45}
+.switch{appearance:none; -webkit-appearance:none; width:50px; height:30px; border-radius:30px; background:var(--line); position:relative; transition:background .2s; flex:none; cursor:pointer; margin:0}
+.switch::after{content:""; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.25)}
+.switch:checked{background:var(--accent)} .switch:checked::after{transform:translateX(20px)}
+.seg{display:flex; background:var(--surface-2); border-radius:12px; padding:3px; gap:3px}
+.seg button{flex:1; border:none; background:transparent; padding:8px 10px; border-radius:9px; font-size:13px; font-weight:600; color:var(--muted)}
+.seg button.on{background:var(--surface); color:var(--fg); box-shadow:0 1px 2px rgba(0,0,0,.1)}
+input[type=range]{width:120px; accent-color:var(--accent)}
+.num{width:76px; height:38px; border-radius:10px; border:1px solid var(--line); background:var(--surface-2); color:var(--fg); font:inherit; font-size:16px; text-align:center; font-variant-numeric:tabular-nums; flex:none}
+.unit{width:18px; font-size:12px; color:var(--muted); flex:none}
+.val{width:40px; text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); font-size:13px}
+.presets{display:flex; gap:8px; flex-wrap:wrap}
+.presets button{flex:1; min-width:88px; border:1px solid var(--line); background:var(--surface); border-radius:12px; padding:9px 8px; font-size:13px; font-weight:600; text-align:center}
+.presets button small{display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:2px}
+.presets button.on{border-color:var(--accent); color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, var(--surface))}
+.curve{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:12px; border-radius:14px; background:var(--surface-2); font-size:13px; font-variant-numeric:tabular-nums}
+.curve span{padding:3px 8px; border-radius:8px; background:var(--surface); font-weight:600}
+.curve i{font-style:normal; color:var(--muted)}
+.note{font-size:12px; color:var(--muted); line-height:1.6; margin-top:12px}
+.linkbtn{border:none; background:none; color:var(--bad); font-size:13px; padding:8px 0; text-decoration:underline}
+@media (prefers-reduced-motion: reduce){ .card{transition:none} .cat{transition:none} }
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} [hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+// ================= 词库 =================
+// [图, 中文, English, Français(含冠词), 阴阳性 m/f, 复数=1]
+const CATS = [
+ {id:"sport", zh:"体育", fr:"le sport", emoji:"⚽", words:[
+  ["⚽","足球","football","le football","m"],["🏀","篮球","basketball","le basket","m"],["🎾","网球","tennis","le tennis","m"],
+  ["🏊","游泳","swimming","la natation","f"],["🚴","骑自行车","cycling","le cyclisme","m"],["⛷️","滑雪","skiing","le ski","m"],
+  ["🏐","排球","volleyball","le volley","m"],["🏓","乒乓球","table tennis","le ping-pong","m"],["🥊","拳击","boxing","la boxe","f"],
+  ["🏃","跑步","running","la course","f"],["🏆","奖杯","trophy","le trophée","m"]]},
+ {id:"kitchen", zh:"厨房", fr:"la cuisine", emoji:"🍳", words:[
+  ["🍳","平底锅","frying pan","la poêle","f"],["🔪","刀","knife","le couteau","m"],["🥄","勺子","spoon","la cuillère","f"],
+  ["🍴","叉子","fork","la fourchette","f"],["🍽️","盘子","plate","l'assiette","f"],["🫖","茶壶","teapot","la théière","f"],
+  ["☕","杯子","cup","la tasse","f"],["🥣","碗","bowl","le bol","m"],["🧂","盐","salt","le sel","m"],
+  ["🍞","面包","bread","le pain","m"],["🥢","筷子","chopsticks","les baguettes","f",1]]},
+ {id:"tools", zh:"工具", fr:"les outils", emoji:"🔨", words:[
+  ["🔨","锤子","hammer","le marteau","m"],["🪛","螺丝刀","screwdriver","le tournevis","m"],["🔧","扳手","wrench","la clé","f"],
+  ["🪚","锯子","saw","la scie","f"],["✂️","剪刀","scissors","les ciseaux","m",1],["📏","尺子","ruler","la règle","f"],
+  ["🪜","梯子","ladder","l'échelle","f"],["🔩","螺丝","screw","la vis","f"],["🧲","磁铁","magnet","l'aimant","m"],
+  ["🔦","手电筒","flashlight","la lampe de poche","f"],["🪝","钩子","hook","le crochet","m"]]},
+ {id:"transport", zh:"交通", fr:"les transports", emoji:"🚗", words:[
+  ["🚗","汽车","car","la voiture","f"],["🚌","公交车","bus","le bus","m"],["🚲","自行车","bicycle","le vélo","m"],
+  ["✈️","飞机","airplane","l'avion","m"],["🚆","火车","train","le train","m"],["🚢","船","ship","le bateau","m"],
+  ["🏍️","摩托车","motorcycle","la moto","f"],["🚕","出租车","taxi","le taxi","m"],["🚇","地铁","subway","le métro","m"],
+  ["🚁","直升机","helicopter","l'hélicoptère","m"],["🚦","红绿灯","traffic light","le feu tricolore","m"]]},
+ {id:"animals", zh:"动物", fr:"les animaux", emoji:"🐱", words:[
+  ["🐱","猫","cat","le chat","m"],["🐶","狗","dog","le chien","m"],["🐦","鸟","bird","l'oiseau","m"],
+  ["🐟","鱼","fish","le poisson","m"],["🐴","马","horse","le cheval","m"],["🐮","奶牛","cow","la vache","f"],
+  ["🐭","老鼠","mouse","la souris","f"],["🐰","兔子","rabbit","le lapin","m"],["🐘","大象","elephant","l'éléphant","m"],
+  ["🐻","熊","bear","l'ours","m"],["🦋","蝴蝶","butterfly","le papillon","m"]]},
+ {id:"fruit", zh:"水果", fr:"les fruits", emoji:"🍎", words:[
+  ["🍎","苹果","apple","la pomme","f"],["🍌","香蕉","banana","la banane","f"],["🍊","橙子","orange","l'orange","f"],
+  ["🍇","葡萄","grapes","le raisin","m"],["🍓","草莓","strawberry","la fraise","f"],["🍉","西瓜","watermelon","la pastèque","f"],
+  ["🍑","桃子","peach","la pêche","f"],["🍐","梨","pear","la poire","f"],["🍋","柠檬","lemon","le citron","m"],
+  ["🍒","樱桃","cherry","la cerise","f"],["🍍","菠萝","pineapple","l'ananas","m"]]},
+ {id:"veg", zh:"蔬菜", fr:"les légumes", emoji:"🥕", words:[
+  ["🥕","胡萝卜","carrot","la carotte","f"],["🍅","番茄","tomato","la tomate","f"],["🥔","土豆","potato","la pomme de terre","f"],
+  ["🧅","洋葱","onion","l'oignon","m"],["🥒","黄瓜","cucumber","le concombre","m"],["🌽","玉米","corn","le maïs","m"],
+  ["🥦","西兰花","broccoli","le brocoli","m"],["🧄","大蒜","garlic","l'ail","m"],["🍆","茄子","eggplant","l'aubergine","f"],
+  ["🌶️","辣椒","chili pepper","le piment","m"],["🍄","蘑菇","mushroom","le champignon","m"]]},
+ {id:"clothes", zh:"衣物", fr:"les vêtements", emoji:"👕", words:[
+  ["👕","T恤","T-shirt","le tee-shirt","m"],["👖","牛仔裤","jeans","le jean","m"],["👗","连衣裙","dress","la robe","f"],
+  ["🧥","外套","coat","le manteau","m"],["👟","运动鞋","sneakers","les baskets","f",1],["🧦","袜子","socks","les chaussettes","f",1],
+  ["🧢","帽子","cap","la casquette","f"],["🧣","围巾","scarf","l'écharpe","f"],["🧤","手套","gloves","les gants","m",1],
+  ["👔","衬衫","shirt","la chemise","f"],["👜","手提包","handbag","le sac à main","m"]]},
+];
+CATS.forEach(c=>{ c.words = c.words.map(w=>({emoji:w[0], zh:w[1], en:w[2], fr:w[3], g:w[4], pl:!!w[5], cat:c.id, id:c.id+":"+w[2]})); });
+const ALL = CATS.flatMap(c=>c.words);
+
+// ================= 存储 =================
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+// ================= 记忆曲线参数（用户可改） =================
+const PRESETS = {
+  standard:{name:"标准", sub:"日常学习", newPerDay:20, first:1, second:3, startEase:2.5, hardMul:1.2, easyBonus:1.3, againPenalty:0.2, maxIvl:365},
+  intense: {name:"冲刺", sub:"考试前，复习更勤", newPerDay:30, first:1, second:2, startEase:1.8, hardMul:1.1, easyBonus:1.2, againPenalty:0.25, maxIvl:60},
+  relaxed: {name:"轻松", sub:"每天少量，间隔更长", newPerDay:10, first:2, second:5, startEase:2.8, hardMul:1.3, easyBonus:1.5, againPenalty:0.15, maxIvl:730},
+};
+const PARAM_KEYS = ["newPerDay","first","second","startEase","hardMul","easyBonus","againPenalty","maxIvl"];
+const MIN_EASE = 1.3;
+
+const DEFAULTS = {speak:{fr:true, en:false, zh:false}, auto:true, order:"fr-en-zh", rate:0.85, shuffle:false,
+  srs:Object.fromEntries(PARAM_KEYS.map(k=>[k, PRESETS.standard[k]]))};
+let settings = Object.assign({}, DEFAULTS, store.get("tm.settings", {}));
+settings.speak = Object.assign({}, DEFAULTS.speak, settings.speak || {});
+settings.srs = Object.assign({}, DEFAULTS.srs, settings.srs || {});
+let cards = store.get("tm.srs", {});      // id -> {reps, ease, ivl, due, lapses}
+let daily = store.get("tm.daily", {day:0, newDone:0});
+const saveSettings = ()=>store.set("tm.settings", settings);
+const saveCards = ()=>store.set("tm.srs", cards);
+const saveDaily = ()=>store.set("tm.daily", daily);
+
+// 以“本地日期”为单位计算
+const today = ()=> Math.floor((Date.now() - new Date().getTimezoneOffset()*60000) / 864e5);
+function newLeft(){ if(daily.day !== today()){ daily = {day:today(), newDone:0}; saveDaily(); } return Math.max(0, settings.srs.newPerDay - daily.newDone); }
+
+// 核心：根据评分计算下一次复习（SM-2 改良版）
+// r: 1 忘了, 2 模糊, 3 记得, 4 很简单
+function schedule(prev, r, P = settings.srs){
+  const s = prev ? {...prev} : {reps:0, ease:P.startEase, ivl:0, due:today(), lapses:0};
+  if(r === 1){
+    if(s.reps > 0) s.lapses++;
+    s.reps = 0; s.ivl = 0; s.ease = Math.round(Math.max(MIN_EASE, s.ease - P.againPenalty)*100)/100; s.due = today();
+    return s;
+  }
+  let hard, good, easy;
+  if(s.reps === 0){ hard = P.first; good = P.first; easy = P.second; }
+  else if(s.reps === 1){ hard = Math.round(s.ivl * P.hardMul); good = P.second; easy = Math.round(P.second * P.easyBonus); }
+  else { hard = Math.round(s.ivl * P.hardMul); good = Math.round(s.ivl * s.ease); easy = Math.round(s.ivl * s.ease * P.easyBonus); }
+  hard = Math.max(1, hard);
+  if(s.reps > 0){ good = Math.max(good, hard + 1); }
+  easy = Math.max(easy, good + 1);
+  let ivl = r === 2 ? hard : r === 3 ? good : easy;
+  ivl = Math.min(P.maxIvl, Math.max(1, ivl));
+  if(r === 2) s.ease = Math.max(MIN_EASE, s.ease - 0.15);
+  if(r === 4) s.ease = s.ease + 0.15;
+  s.ease = Math.round(s.ease*100)/100;
+  s.reps++; s.ivl = ivl; s.due = today() + ivl;
+  return s;
+}
+function fmtIvl(s){ if(!s.ivl) return "马上再看"; const d = s.ivl;
+  if(d < 30) return d + " 天"; if(d < 365) return (d/30).toFixed(d < 60 ? 1 : 0).replace(".0","") + " 个月"; return (d/365).toFixed(1).replace(".0","") + " 年"; }
+function curvePreview(P){ // 一直点“记得”时的间隔
+  let s = null; const out = [];
+  for(let i=0;i<6;i++){ s = schedule(s, 3, P); out.push(s.ivl); }
+  return out;
+}
+const isDue = w => cards[w.id] && cards[w.id].due <= today();
+const isNew = w => !cards[w.id];
+const mastered = w => cards[w.id] && cards[w.id].ivl >= 21;
+
+// ================= 发音 =================
+const synth = window.speechSynthesis;
+const LANG = {fr:"fr-FR", en:"en-US", zh:"zh-CN"};
+let voices = [];
+function loadVoices(){ if(synth) voices = synth.getVoices(); }
+if(synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
+function pickVoice(code){
+  const norm = v=>v.lang.replace("_","-").toLowerCase();
+  const c = code.toLowerCase(), base = c.split("-")[0];
+  return voices.find(v=>norm(v)===c && v.localService) || voices.find(v=>norm(v)===c) || voices.find(v=>norm(v).startsWith(base));
+}
+function speakList(list){
+  if(!synth) return;
+  synth.cancel();
+  list.forEach(([k, text])=>{
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = LANG[k]; const v = pickVoice(LANG[k]); if(v) u.voice = v;
+    u.rate = settings.rate;
+    u.onstart = ()=>setPlaying(k); u.onend = ()=>setPlaying(null); u.onerror = ()=>setPlaying(null);
+    synth.speak(u);
+  });
+}
+function setPlaying(k){ document.querySelectorAll(".speak").forEach(b=>b.classList.toggle("playing", b.dataset.lang===k)); }
+const textFor = (w, k)=> k==="fr" ? w.fr : k==="en" ? w.en : w.zh;
+function speakEnabled(w){ const order = settings.order.split("-").filter(k=>settings.speak[k]); if(order.length) speakList(order.map(k=>[k, textFor(w,k)])); }
+const stopSpeech = ()=>{ if(synth) synth.cancel(); };
+
+// ================= 状态 =================
+// session: {mode:'srs'|'practice', src, title, queue:[], idx (practice), reviewed, forgot, total}
+let view = "home", S = null, flipped = false, sheetOpen = false, sheetTab = "speak";
+const $app = document.getElementById("app");
+const ICON = {
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  next:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
+  spk:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+};
+const esc = s=>String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const genderLabel = w => (w.g==="m" ? "阳性 m." : "阴性 f.") + (w.pl ? " · 复数" : "");
+const current = ()=> S.mode==="srs" ? S.queue[0] : S.queue[S.idx];
+
+// ================= 渲染 =================
+function render(){ if(view==="home") renderHome(); else if(view==="study") renderStudy(); else renderDone(); }
+function header(title, sub, withBack){
+  return `<div class="bar">
+    ${withBack ? `<button class="iconbtn" id="goHome" aria-label="返回">${ICON.back}</button>` : ""}
+    <h1>${title}${sub ? `<small>${sub}</small>` : ""}</h1>
+    <button class="iconbtn" id="openSet" aria-label="设置">${ICON.gear}</button></div>`;
+}
+function renderHome(){
+  const due = ALL.filter(isDue).length;
+  const nl = Math.min(newLeft(), ALL.filter(isNew).length);
+  const tomorrow = ALL.filter(w=>cards[w.id] && cards[w.id].due === today()+1).length;
+  const on = ["fr","en","zh"].filter(k=>settings.speak[k]).map(k=>({fr:"法",en:"英",zh:"中"})[k]).join("·") || "关闭";
+  $app.innerHTML = header("三语词卡", `中 · English · Français　发音：${on}`) + `
+   <div class="today">
+     <div><div class="lbl">今天要复习</div><div class="num due">${due}</div></div>
+     <div><div class="lbl">今天可学新词</div><div class="num">${nl}</div></div>
+     <button class="btn yes start" id="startAll" ${due+nl ? "" : "disabled"}>开始今天的学习</button>
+     ${due+nl ? "" : `<div class="msg">今天的任务完成了。明天有 ${tomorrow} 个词要复习。</div>`}
+   </div>
+   <div class="legend">法语颜色：<span class="chip m">阳性 le / un</span><span class="chip f">阴性 la / une</span></div>
+   <div class="grid">${CATS.map(c=>{
+     const n = c.words.length;
+     const m = c.words.filter(mastered).length, l = c.words.filter(w=>cards[w.id] && !mastered(w)).length;
+     const d = c.words.filter(isDue).length;
+     return `<button class="cat" data-cat="${c.id}">${d ? `<span class="badge" title="到期">${d}</span>` : ""}<span class="emo">${c.emoji}</span>
+       <span class="zh">${c.zh}</span><span class="fr">${esc(c.fr)}</span>
+       <span class="meter"><i style="width:${m/n*100}%"></i><i class="lrn" style="width:${l/n*100}%"></i></span>
+       <span class="cnt">学过 ${m+l} / ${n} · 掌握 ${m}</span></button>`;}).join("")}</div>`;
+  $app.querySelectorAll(".cat").forEach(b=>b.onclick=()=>startSrs(b.dataset.cat));
+  document.getElementById("startAll").onclick=()=>startSrs("all");
+  bindHeader();
+}
+function rowHtml(w, k){
+  const cls = k==="fr" ? `fr ${w.g}` : k;
+  const extra = k==="fr" ? `<span class="gender">${genderLabel(w)}</span>` : "";
+  return `<div class="row ${cls}"><span class="lang">${({zh:"中",en:"EN",fr:"FR"})[k]}</span>
+    <div class="word">${esc(textFor(w,k))}${extra}</div>
+    <button class="speak ${settings.speak[k] ? "" : "off"}" data-lang="${k}" aria-label="朗读">${ICON.spk}</button></div>`;
+}
+function renderStudy(){
+  const w = current();
+  const cat = CATS.find(c=>c.id===w.cat);
+  const st = cards[w.id];
+  let progress, mark;
+  if(S.mode==="srs"){
+    const left = S.queue.length;
+    progress = `<span>已完成 ${S.reviewed}</span><div class="meter"><i style="width:${S.reviewed/(S.reviewed+left)*100}%"></i></div><span>剩 ${left}</span>`;
+    mark = st ? (st.reps ? `<span class="mark">复习 · 第 ${st.reps+1} 次</span>` : `<span class="mark new">重学</span>`) : `<span class="mark new">新词</span>`;
+  } else {
+    progress = `<span>${S.idx+1} / ${S.queue.length}</span><div class="meter"><i style="width:${(S.idx+1)/S.queue.length*100}%"></i></div><span>练习</span>`;
+    mark = `<span class="mark">不计入曲线</span>`;
+  }
+  $app.innerHTML = header(S.title, null, true) + `
+   <div class="study">
+    <div class="progress">${progress}</div>
+    <div class="scene"><div class="card ${flipped ? "flipped" : ""}" id="card" role="button" tabindex="0" aria-label="翻转卡片">
+      <div class="face front">
+        <span class="tag">${cat.emoji} ${cat.zh}</span>${mark}
+        <div class="pic">${w.emoji}</div>
+        <div class="hint">先在心里说出法语，再点卡片翻面</div>
+      </div>
+      <div class="face back"><div class="mini">${w.emoji}</div>${rowHtml(w,"zh")}${rowHtml(w,"en")}${rowHtml(w,"fr")}</div>
+    </div></div>
+    ${controlsHtml()}
+   </div>`;
+  const card = document.getElementById("card");
+  card.onclick = e=>{ if(e.target.closest(".speak")) return; flip(); };
+  card.onkeydown = e=>{ if(e.key==="Enter"){ e.preventDefault(); flip(); } };
+  card.querySelectorAll(".speak").forEach(b=>b.onclick=e=>{ e.stopPropagation(); speakList([[b.dataset.lang, textFor(w,b.dataset.lang)]]); });
+  bindControls();
+  bindHeader();
+}
+function controlsHtml(){
+  const w = current(), st = cards[w.id];
+  if(S.mode==="srs"){
+    if(!flipped) return `<div class="controls reveal"><button class="btn yes" id="reveal">显示答案</button></div>`;
+    const labels = ["忘了","模糊","记得","很简单"];
+    return `<div class="controls rate">${[1,2,3,4].map(r=>`<button class="btn rb r${r}" data-r="${r}">${labels[r-1]}<small>${fmtIvl(schedule(st, r))}</small></button>`).join("")}</div>`;
+  }
+  return `<div class="controls practice">
+      <button class="btn" id="prev" aria-label="上一个" ${S.idx===0 ? "disabled" : ""}>${ICON.back}</button>
+      <button class="btn yes" id="flipBtn">${flipped ? "翻回正面" : "显示答案"}</button>
+      <button class="btn" id="next" aria-label="下一个">${ICON.next}</button></div>`;
+}
+function bindControls(){
+  const on = (id, fn)=>{ const el = document.getElementById(id); if(el) el.onclick = fn; };
+  on("reveal", flip); on("flipBtn", flip);
+  on("prev", ()=>step(-1)); on("next", ()=>step(1));
+  $app.querySelectorAll(".rb").forEach(b=>b.onclick=()=>rate(+b.dataset.r));
+}
+function renderDone(){
+  const tomorrow = ALL.filter(w=>cards[w.id] && cards[w.id].due === today()+1).length;
+  const hasCards = S.mode==="practice" || S.reviewed > 0;
+  $app.innerHTML = header(S.title, null, true) + `
+   <div class="done">
+    <div style="font-size:60px">${hasCards ? "🎉" : "☕"}</div>
+    <h2>${S.mode==="practice" ? "练习结束" : hasCards ? "这一轮完成了" : "这组今天没有要学的"}</h2>
+    ${S.mode==="srs" && hasCards ? `<div class="stats"><div><b>${S.reviewed}</b>学了</div><div><b>${S.forgot}</b>忘了</div><div><b>${tomorrow}</b>明天复习</div></div>`
+      : S.mode==="srs" ? `<p>到期的词都复习完了，新词也达到今天的上限。想多看看，可以自由练习，不会影响复习计划。</p>` : ""}
+    ${S.src !== "all" ? `<button class="btn" id="practice">自由练习这一组（不计入曲线）</button>` : ""}
+    <button class="btn yes" id="home2">返回首页</button></div>`;
+  const p = document.getElementById("practice"); if(p) p.onclick=()=>startPractice(S.src);
+  document.getElementById("home2").onclick=goHome;
+  bindHeader();
+}
+
+// ---------- 设置 ----------
+function renderSheet(){
+  let el = document.getElementById("scrim");
+  if(!el){ el = document.createElement("div"); el.id="scrim"; el.className="scrim"; document.body.appendChild(el);
+    el.onclick = e=>{ if(e.target===el) closeSheet(); }; }
+  const scroll = el.querySelector(".sheet")?.scrollTop || 0;
+  const sw = (id, on) => `<input type="checkbox" class="switch" id="${id}" ${on ? "checked" : ""}>`;
+  const P = settings.srs;
+  const activePreset = Object.keys(PRESETS).find(k=>PARAM_KEYS.every(p=>PRESETS[k][p]===P[p]));
+  const num = (key, label, help, step, min, max, unit="") =>
+    `<div class="opt"><label for="p-${key}">${label}<small>${help}</small></label>
+     <input class="num" type="number" inputmode="decimal" id="p-${key}" data-key="${key}" value="${P[key]}" step="${step}" min="${min}" max="${max}"><span class="unit">${unit}</span></div>`;
+  const speakTab = `
+    <div class="sec">翻到背面时，读哪些语言</div>
+    <div class="opt"><label for="s-fr">法语 Français<small>建议保持打开</small></label>${sw("s-fr", settings.speak.fr)}</div>
+    <div class="opt"><label for="s-en">英语 English</label>${sw("s-en", settings.speak.en)}</div>
+    <div class="opt"><label for="s-zh">中文</label>${sw("s-zh", settings.speak.zh)}</div>
+    <div class="sec">播放</div>
+    <div class="opt"><label for="s-auto">翻面后自动朗读<small>关掉后只在点喇叭时发音</small></label>${sw("s-auto", settings.auto)}</div>
+    <div class="opt"><label>朗读顺序</label><div class="seg" id="order">
+      <button data-v="fr-en-zh" class="${settings.order==="fr-en-zh"?"on":""}">法→英→中</button>
+      <button data-v="zh-en-fr" class="${settings.order==="zh-en-fr"?"on":""}">中→英→法</button></div></div>
+    <div class="opt"><label for="s-rate">语速</label><input type="range" id="s-rate" min="0.5" max="1.2" step="0.05" value="${settings.rate}"><span class="val" id="rateVal">${settings.rate.toFixed(2)}</span></div>
+    <div class="opt"><button class="btn" id="test" style="width:100%">${ICON.spk} 试听当前设置</button></div>
+    <div class="sec">学习</div>
+    <div class="opt"><label for="s-shuf">新词打乱顺序<small>否则按分类顺序出现</small></label>${sw("s-shuf", settings.shuffle)}</div>
+    <div class="note">${synth ? "发音使用设备自带的语音。iPhone 上如果法语听起来生硬，可以在 设置 → 辅助功能 → 朗读内容 → 声音 → 法语 里下载增强版声音。" : "这个浏览器不支持语音朗读，请用 Safari 或 Chrome 打开。"}</div>`;
+  const curve = curvePreview(P);
+  let acc = 0;
+  const srsTab = `
+    <div class="sec">快速选择</div>
+    <div class="presets">${Object.entries(PRESETS).map(([k,v])=>`<button data-preset="${k}" class="${activePreset===k?"on":""}">${v.name}<small>${v.sub}</small></button>`).join("")}</div>
+    <div class="sec">一直点“记得”时，复习间隔会这样变长</div>
+    <div class="curve">${curve.map((d,i)=>{ acc += d; return `${i?"<i>→</i>":""}<span>${d}天</span>`; }).join("")}</div>
+    <div class="note" style="margin-top:6px">6 次复习后，大约在第 ${acc} 天还能记住。</div>
+    <div class="sec">每天</div>
+    ${num("newPerDay","每天新词上限","每天最多出现多少个没学过的词",1,0,200,"个")}
+    <div class="sec">间隔</div>
+    ${num("first","第一次复习间隔","新词第一次点“记得”后，隔几天再出现",1,1,30,"天")}
+    ${num("second","第二次复习间隔","第二次点“记得”后，隔几天再出现",1,1,60,"天")}
+    ${num("maxIvl","最长间隔","无论多熟，最多隔几天也要复习一次",1,7,3650,"天")}
+    <div class="sec">倍数</div>
+    ${num("startEase","熟练系数（起始）","之后每次间隔 = 上次间隔 × 这个数。越大，间隔增长越快",0.1,1.3,4,"×")}
+    ${num("hardMul","“模糊”倍数","点“模糊”时，间隔只乘这个数，增长较慢",0.05,1,2,"×")}
+    ${num("easyBonus","“很简单”奖励","点“很简单”时，额外再乘这个数",0.05,1,3,"×")}
+    ${num("againPenalty","“忘了”扣分","点“忘了”时，这个词的熟练系数减少多少",0.05,0,1,"")}
+    <div class="note">“忘了”的词会在本轮稍后再出现一次，然后从第一次间隔重新开始。熟练系数最低为 ${MIN_EASE}。
+      <br><button class="linkbtn" id="reset">清除所有学习记录</button></div>`;
+  el.innerHTML = `<div class="sheet" role="dialog" aria-label="设置">
+    <h3>设置 <button class="iconbtn" id="closeSet" aria-label="关闭">${ICON.x}</button></h3>
+    <div class="tabs"><button data-tab="speak" class="${sheetTab==="speak"?"on":""}">发音</button><button data-tab="srs" class="${sheetTab==="srs"?"on":""}">记忆曲线</button></div>
+    ${sheetTab==="speak" ? speakTab : srsTab}</div>`;
+  el.querySelector(".sheet").scrollTop = scroll;
+  el.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{ sheetTab = b.dataset.tab; el.querySelector(".sheet").scrollTop = 0; renderSheet(); el.querySelector(".sheet").scrollTop = 0; });
+  document.getElementById("closeSet").onclick = closeSheet;
+  if(sheetTab==="speak"){
+    const bindSw = (id, fn)=>document.getElementById(id).onchange = e=>{ fn(e.target.checked); saveSettings(); refreshBehind(); };
+    bindSw("s-fr", v=>settings.speak.fr=v); bindSw("s-en", v=>settings.speak.en=v); bindSw("s-zh", v=>settings.speak.zh=v);
+    bindSw("s-auto", v=>settings.auto=v); bindSw("s-shuf", v=>settings.shuffle=v);
+    el.querySelectorAll("#order button").forEach(b=>b.onclick=()=>{ settings.order=b.dataset.v; saveSettings();
+      el.querySelectorAll("#order button").forEach(x=>x.classList.toggle("on", x===b)); });
+    const r = document.getElementById("s-rate");
+    r.oninput = ()=>{ settings.rate = parseFloat(r.value); document.getElementById("rateVal").textContent = settings.rate.toFixed(2); saveSettings(); };
+    document.getElementById("test").onclick = ()=> speakEnabled(view==="study" ? current() : ALL.find(x=>x.en==="cat"));
+  } else {
+    el.querySelectorAll("[data-preset]").forEach(b=>b.onclick=()=>{ const p = PRESETS[b.dataset.preset];
+      PARAM_KEYS.forEach(k=>settings.srs[k]=p[k]); saveSettings(); renderSheet(); refreshBehind(); });
+    el.querySelectorAll(".num").forEach(inp=>inp.onchange=()=>{
+      let v = parseFloat(inp.value); const min = parseFloat(inp.min), max = parseFloat(inp.max);
+      if(isNaN(v)) v = settings.srs[inp.dataset.key];
+      v = Math.min(max, Math.max(min, v));
+      if(["newPerDay","first","second","maxIvl"].includes(inp.dataset.key)) v = Math.round(v);
+      settings.srs[inp.dataset.key] = Math.round(v*100)/100; saveSettings(); renderSheet(); refreshBehind();
+    });
+    const reset = document.getElementById("reset");
+    reset.onclick = ()=>{
+      if(reset.dataset.confirm){ cards = {}; daily = {day:today(), newDone:0}; saveCards(); saveDaily(); reset.textContent = "已清除"; delete reset.dataset.confirm; if(view!=="home") goHome(); else refreshBehind(); }
+      else { reset.dataset.confirm = "1"; reset.textContent = "再点一次确认清除（无法恢复）"; }
+    };
+  }
+}
+function refreshBehind(){ render(); }
+function bindHeader(){
+  const s = document.getElementById("openSet"); if(s) s.onclick = ()=>{ sheetOpen = true; renderSheet(); };
+  const h = document.getElementById("goHome"); if(h) h.onclick = goHome;
+}
+function closeSheet(){ sheetOpen = false; const el = document.getElementById("scrim"); if(el) el.remove(); }
+
+// ================= 操作 =================
+function shuffle(a){ a = a.slice(); for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+function startSrs(src){
+  const pool = src==="all" ? ALL : CATS.find(c=>c.id===src).words;
+  const due = pool.filter(isDue).sort((a,b)=>cards[a.id].due - cards[b.id].due);
+  let fresh = pool.filter(isNew); if(settings.shuffle) fresh = shuffle(fresh);
+  fresh = fresh.slice(0, newLeft());
+  const c = CATS.find(x=>x.id===src);
+  S = {mode:"srs", src, title: src==="all" ? "今天的学习" : `${c.emoji} ${c.zh}`, queue: shuffle(due).concat(fresh), reviewed:0, forgot:0};
+  flipped = false; stopSpeech();
+  view = S.queue.length ? "study" : "done"; render(); window.scrollTo(0,0);
+}
+function startPractice(src){
+  const c = CATS.find(x=>x.id===src);
+  S = {mode:"practice", src, title:`${c.emoji} ${c.zh} · 练习`, queue: shuffle(c.words), idx:0};
+  flipped = false; stopSpeech(); view = "study"; render();
+}
+function flip(){
+  flipped = !flipped;
+  document.getElementById("card").classList.toggle("flipped", flipped);
+  $app.querySelector(".controls").outerHTML = controlsHtml(); bindControls();
+  if(flipped && settings.auto) speakEnabled(current());
+  else if(!flipped) stopSpeech();
+}
+function rate(r){
+  const w = S.queue.shift();
+  if(isNew(w)){ newLeft(); daily.newDone++; saveDaily(); }
+  cards[w.id] = schedule(cards[w.id], r); saveCards();
+  if(r === 1){ S.forgot++; S.queue.splice(Math.min(3, S.queue.length), 0, w); }
+  else S.reviewed++;
+  flipped = false; stopSpeech();
+  if(!S.queue.length){ view = "done"; }
+  render();
+}
+function step(d){
+  stopSpeech(); const n = S.idx + d;
+  if(n < 0) return;
+  if(n >= S.queue.length){ view = "done"; render(); return; }
+  S.idx = n; flipped = false; renderStudy();
+}
+function goHome(){ stopSpeech(); view = "home"; render(); }
+
+document.addEventListener("keydown", e=>{
+  if(view!=="study" || sheetOpen || e.target.closest("input")) return;
+  if(e.key===" "){ e.preventDefault(); flip(); }
+  else if(S.mode==="srs" && flipped && ["1","2","3","4"].includes(e.key)) rate(+e.key);
+  else if(S.mode==="practice" && e.key==="ArrowRight") step(1);
+  else if(S.mode==="practice" && e.key==="ArrowLeft") step(-1);
+});
+render();
+</script>
+</body>
+</html>
