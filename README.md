@@ -1,7 +1,7 @@
 # 三语词卡 Trois Mots
 
 用图片记单词，中文、English、Français 三语对照，内置记忆曲线（间隔重复）。
-为"母语中文、会英语、正在学法语"的人设计。
+为"母语中文、学习英语和法语"的人设计。
 
 ## 功能
 
@@ -54,36 +54,3 @@
 | `config.js` | Supabase 项目地址和 publishable key |
 | `supabase.sql` | 建数据表和权限规则，在 Supabase 后台运行一次 |
 
-## 云同步设置（Supabase，一次性）
-
-1. **建表**：Supabase 后台 → SQL Editor → New query，粘贴 `supabase.sql` 全部内容，点 Run。
-2. **邮件改成验证码**：Authentication → Emails（Templates），把 **Magic Link** 和 **Confirm signup** 两个模板的内容都换成下面这段：
-
-   ```html
-   <h2>三语词卡 登录验证码</h2>
-   <p>你的验证码是：</p>
-   <p style="font-size:28px;font-weight:bold;letter-spacing:4px">{{ .Token }}</p>
-   <p>请尽快在 App 里输入。如果不是你本人操作，忽略这封邮件即可。</p>
-   ```
-3. **网址**：Authentication → URL Configuration，Site URL 填 GitHub Pages 网址。
-
-数据安全说明：publishable key 本来就是放在网页里公开的。每个人只能读写自己的数据，由数据库的行级权限（RLS）保证。
-
-注意：Supabase 自带的邮件服务每小时只能发很少几封。用户多了以后，需要在 Authentication → SMTP Settings 接入自己的邮件服务（比如 Resend）。
-
-## 发布到网上（GitHub Pages，免费）
-
-1. 把这个仓库推到 GitHub（`index.html`、`config.js`、`README.md`，`supabase.sql` 也可以一起放）。
-2. 进入仓库的 **Settings → Pages**。
-3. Source 选 **Deploy from a branch**，分支选 `main`，文件夹选 `/ (root)`，保存。
-4. 一两分钟后，网址会显示在页面上，一般是 `https://你的用户名.github.io/trois-mots/`。
-
-## 下一步计划
-
-- [ ] 真实照片替代 emoji
-- [ ] 更多分类和词汇（DELF A1 词表）
-- [ ] 例句
-- [ ] 学习统计图表
-- [x] 账号登录，多设备同步进度
-- [ ] 打包成 iOS App
-- [ ] 等等
